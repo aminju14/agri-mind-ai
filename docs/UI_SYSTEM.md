@@ -25,6 +25,9 @@
   layout or style.
 - Extend the data hook to consume the network while preserving the existing reveal
   animation and state machine.
+- Collapse/expand the left sidebar and right insight panel to a slim icon rail on
+  desktop (approved change — see §3.3). The expanded layout and all six components are
+  unchanged; collapse only swaps a column for its icon rail and is opt-in per user.
 
 Any visual change requires a separate, explicit re-approval task. A PR that alters the
 approved pixels without that approval is rejected by definition.
@@ -90,7 +93,7 @@ responsive breakpoints in [use-agrimind.ts](../src/hooks/use-agrimind.ts).
 |------|-------|--------------|-------------|
 | `isMobile` | `< 720px` | drawer (overlay, 280px, z 70) | bottom sheet (78vh, z 60) |
 | `isTablet` | `720–1079px` | fixed 248px | slide-over (360px, max 86vw, z 60) |
-| `isDesktop` | `≥ 1080px` | fixed 280px | fixed 340px column |
+| `isDesktop` | `≥ 1080px` | fixed 280px (collapsible → 64px rail) | fixed 340px column (collapsible → 64px rail) |
 
 ### 3.2 Column contract (placement is frozen)
 ```
@@ -110,6 +113,33 @@ responsive breakpoints in [use-agrimind.ts](../src/hooks/use-agrimind.ts).
 **Rule:** the order Left → Main → Right and the internal stacking (Topbar → Agent
 Status → Thread → Composer) is immutable.
 
+### 3.3 Collapsible columns (desktop only — approved)
+
+On desktop, the left sidebar and the right insight panel can each be collapsed,
+independently, to a **64px icon rail**. This gives the centered chat column more room
+without removing either component.
+
+- **Geometry:** when collapsed, the column's width (`Wl`/`Wr`) becomes `64`; `main`'s
+  `marginLeft`/`marginRight` follow it. Width animates (`.25s cubic-bezier(.4,0,.2,1)`);
+  the `main` margin reuses its existing `margin .25s` transition.
+- **Toggle:** a `SidebarToggleIcon` button. In the expanded view it sits in the
+  sidebar's brand row / the panel header (next to "Insights"). On the rail it appears as
+  an icon button that expands the column back.
+- **Rail contents (icon-only, with `aria-label`/`title`):**
+  - *Sidebar rail:* brand tile, expand toggle, New Chat, then theme + language toggles
+    pinned to the bottom. History, search, and the per-item menu are hidden until expanded.
+  - *Panel rail:* the bulb glyph (tinted) + expand toggle. The four insight sections are
+    hidden until expanded.
+- **Scope:** desktop only (`canCollapse = isDesktop`). Tablet/mobile are unaffected —
+  they keep the drawer / slide-over / bottom-sheet behavior (§3.1, §8); collapse never
+  applies there.
+- **Persistence:** each collapse state persists to `localStorage`
+  (`am_sidebar_collapsed`, `am_panel_collapsed`; `"1"`/`"0"`) and is restored on mount,
+  alongside `am_theme`/`am_lang` (§9).
+- **Invariant:** the **expanded** layout, the six components, and the Left→Main→Right
+  order are unchanged. Collapse is purely a per-user, reversible space optimization; it
+  introduces no new component and removes none.
+
 ---
 
 ## 4. The six required components (contracts)
@@ -120,14 +150,16 @@ the invariants the backend must satisfy.
 ### 4.1 Sidebar — [sidebar.tsx](../src/components/sidebar.tsx)
 **Renders:** brand mark + "AgriMind AI" + "AGRI · INTELLIGENCE"; **New Chat**;
 search input; grouped **history** (Today/Yesterday/Last 7 days); footer with theme
-toggle, language toggle, user (avatar "TW", name, plan).
+toggle, language toggle, user (avatar "AM", name, plan).
 **Binds:** `t: Strings`, `history: HistoryGroup[]`, `theme`, `lang`, `newChat`,
-`toggleTheme`, `toggleLang`.
+`toggleTheme`, `toggleLang`, plus `collapsed`/`canCollapse`/`onToggleCollapse` for the
+desktop rail (§3.3).
 **Invariants:** history groups come from `conversations(userId, updatedAt)` bucketed
 into the same three localized labels. New Chat resets to hero (existing `newChat`).
 Theme/lang persist to `localStorage` (`am_theme`, `am_lang`).
 **Constraints:** widths 280 (desktop/mobile drawer) / 248 (tablet); footer pinned
-bottom; history scrolls.
+bottom; history scrolls. On desktop the column may be collapsed to the 64px icon rail
+(§3.3) — the expanded layout is unchanged.
 
 ### 4.2 Chat Layout — [agrimind-app.tsx](../src/components/agrimind-app.tsx) + [hero.tsx](../src/components/hero.tsx) + [chat-thread.tsx](../src/components/chat-thread.tsx)
 **Two thread states:**
@@ -135,7 +167,7 @@ bottom; history scrolls.
   title/sub/desc, "Start with a suggestion" + the 5 suggested prompt cards, floating
   glows.
 - **Chat** (`view==="chat"`): max-width 780 column; user bubbles (right, green
-  gradient, avatar "TW") and AI bubbles (left, agent-tinted tile); thinking indicator;
+  gradient, avatar "AM") and AI bubbles (left, agent-tinted tile); thinking indicator;
   streaming reveal.
 **Composer:** sticky bottom; attach button, auto-grow textarea (max 120px),
 send button (enabled only when input non-empty and not thinking); disclaimer line.
@@ -172,7 +204,9 @@ progress bar).
 **Invariants:** section order and the four sections are immutable. Data is
 session-scoped (`AGENTS.md §10`); new/empty conversations show the localized seed
 `PANEL[lang]`. On tablet/mobile this becomes the slide-over/bottom-sheet (grabber +
-close button) without changing internal layout.
+close button) without changing internal layout. On desktop the column may be collapsed
+to the 64px icon rail (§3.3) via `collapsed`/`canCollapse`/`onToggleCollapse`; the
+expanded layout and section order are unchanged.
 
 ### 4.6 Suggested Prompt Cards — [suggested-prompts.tsx](../src/components/suggested-prompts.tsx)
 **Renders:** 5 cards (Learn Farming, Diagnose Plant Problems, Farm Planning, Crop
@@ -191,7 +225,8 @@ The hook is the UI's state authority. Backend integration MUST preserve this mac
 
 ```
 state: theme, lang, view('hero'|'chat'), messages[], input, thinking,
-       thinkAgent, width, drawerOpen, sheetOpen
+       thinkAgent, width, drawerOpen, sheetOpen,
+       sidebarCollapsed, panelCollapsed   // desktop rail (§3.3)
 refs:  midx (message counter), threadRef (autoscroll)
 ```
 
@@ -203,6 +238,8 @@ refs:  midx (message counter), threadRef (autoscroll)
   after the existing ~320ms delay → citations + insight + actions appear.
 - `newChat()` → clear messages, `view=hero`, cancel any in-flight stream.
 - `toggleTheme/toggleLang` → persist + re-render; theme writes `data-theme`.
+- `toggleSidebar/togglePanel` → flip `sidebarCollapsed`/`panelCollapsed` and persist to
+  `localStorage` (desktop rail, §3.3); affects column width only, not the state machine.
 
 **Constraint:** the **visual** reveal cadence (heading vs paragraph vs list step
 rates, blinking cursor, fade-up entry) is part of the approved design. When binding to
@@ -266,6 +303,8 @@ position changes. No mobile-specific redesign.
 
 - Theme is applied by setting `data-theme="dark|light"` on `<html>`; all visuals come
   from tokens (§2). Persisted in `am_theme`.
+- Desktop column collapse persists in `am_sidebar_collapsed` / `am_panel_collapsed`
+  (`"1"`/`"0"`), restored on mount (§3.3).
 - Language toggles `lang` (`en|id`), persisted in `am_lang`. **All** user-facing
   strings come from `STRINGS[lang]`, `PANEL[lang]`, `PROMPTS[*][lang]`, agent display
   names `AGENTS[k][lang]`, and the localized disclaimer. No hardcoded English in

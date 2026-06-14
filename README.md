@@ -52,6 +52,7 @@ The system combines **Retrieval-Augmented Generation (RAG)** with a curated agri
 - Real-time streaming responses with agent status indicators
 - Sidebar with conversation history (pinning, archiving, search)
 - Right-side insight panel with learning paths
+- Collapsible sidebar & insight panel (desktop) — collapse either to a slim icon rail to maximize the chat area; the state is remembered across reloads
 - Suggested prompts for new users
 - Fully responsive layout
 
