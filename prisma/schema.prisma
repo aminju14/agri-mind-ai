@@ -1,0 +1,378 @@
+// AgriMind AI — Prisma schema
+// Authoritative spec: docs/DATABASE.md §4. The vector(N) columns and their indexes,
+// plus RLS policies, are created by paired raw-SQL migrations (docs/DATABASE.md §5, §13)
+// because Prisma cannot express `vector(N)` natively.
+//
+// EMBED_DIM is fixed at 1536 (text-embedding-3-large @ dimensions=1536) so pgvector
+// HNSW is usable (docs/DATABASE.md §5.3). Ingestion and query embeddings MUST match it.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_URL")
+  // Requires the Postgres `vector` extension. Use a pgvector-enabled image (e.g.
+  // pgvector/pgvector:pg16). The init migration also runs CREATE EXTENSION "vector".
+  extensions = [pgvector(map: "vector")]
+}
+
+enum Lang {
+  en
+  id
+}
+
+enum MessageRole {
+  user
+  ai
+}
+
+enum AgentKey {
+  agronomist
+  plantdoctor
+  farmplanner
+  research
+}
+
+enum SyncState {
+  synced
+  unsynced
+}
+
+// TASK 5 — long-term conversational memory categories.
+enum MemoryCategory {
+  crop_interest
+  learning_interest
+  goal
+  challenge
+}
+
+// TASK 9 — proactive insight categories.
+enum InsightCategory {
+  learning
+  risk
+  opportunity
+  planning
+  research
+}
+
+// ---------------------------------------------------------------------------
+// Identity & tenancy
+// ---------------------------------------------------------------------------
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  image     String?
+  plan      String   @default("pro") // mirrors UI "Pro plan"
+  locale    Lang     @default(en)
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  conversations Conversation[]
+  learning      LearningPath[]
+  usage         UsageEvent[]
+  memories      MemoryEntry[]
+  accounts      Account[]
+  sessions      Session[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Conversation history
+// ---------------------------------------------------------------------------
+
+model Conversation {
+  id        String    @id @default(cuid())
+  userId    String
+  title     String    @default("New Chat")
+  lang      Lang      @default(en)
+  createdAt DateTime  @default(now()) @db.Timestamptz
+  updatedAt DateTime  @updatedAt @db.Timestamptz
+  deletedAt  DateTime? @db.Timestamptz
+  isPinned   Boolean   @default(false)
+  isArchived Boolean   @default(false)
+
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+  snapshots PanelSnapshot[]
+  insights  Insight[]
+
+  @@index([userId, updatedAt]) // history list ordering
+  @@index([userId, deletedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  lang           Lang
+
+  // user fields
+  text String? // user message body
+
+  // ai fields (lossless render payload — DATABASE.md §2 "Lossless answers")
+  agentKey     AgentKey?
+  blocks       Json? // Block[] (Frozen MASTER §3.2)
+  insight      String? // single insight (Frozen MASTER §3.4)
+  routerReason String? // explainability (MASTER Rule 9)
+  routerScores Json? // per-agent scores
+  usedRag      Boolean   @default(false)
+  usedWeb      Boolean   @default(false)
+
+  // provenance / observability (MASTER §16.2, ARCHITECTURE §15.1 / §20)
+  promptVersion String? // active agent prompt version
+  modelId       String? // generation model id
+  blockRepairs  Int       @default(0) // # repair passes applied
+  aborted       Boolean   @default(false) // turn aborted mid-stream (audit)
+  syncState     SyncState @default(synced) // unsynced => async backfill
+
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  citations    Citation[]
+  usage        UsageEvent?
+  insights     Insight[]
+
+  @@index([conversationId, createdAt]) // thread render order
+  @@map("messages")
+}
+
+model Citation {
+  id        String  @id @default(cuid())
+  messageId String
+  ordinal   Int // 1..N render order
+  title     String // Frozen MASTER §3.3 — the source title (TASK 7 source_title)
+  category  String // pill text; for RAG citations holds the relevance ("92% match")
+  source    String // bare domain / KB origin
+  url       String? // link target (TASK 7 source_url)
+  chunkId   String? // provenance: KB chunk if any
+  webUrl    String? // provenance: web result if any
+
+  // TASK 7 — provenance + ranking for auditing.
+  documentId      String? // provenance: KB document the citation aggregates
+  similarityScore Float? // best chunk similarity that produced this citation
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, ordinal])
+  @@index([messageId])
+  @@map("citations")
+}
+
+// ---------------------------------------------------------------------------
+// Knowledge base + embeddings (RAG)
+// ---------------------------------------------------------------------------
+
+model Document {
+  id        String   @id @default(cuid())
+  title     String
+  source    String // e.g. "fao.org", "agrimind.ai"
+  category  String // e.g. "Agronomy", "Market Data"
+  lang      Lang
+  origin    String   @default("kb") // kb | web_ingest | manual
+  uri       String? // canonical URL if external
+  checksum  String // dedupe ingest
+  createdAt DateTime @default(now()) @db.Timestamptz
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  chunks Chunk[]
+
+  @@unique([source, checksum])
+  @@index([lang, category])
+  @@map("documents")
+}
+
+model Chunk {
+  id         String   @id @default(cuid())
+  documentId String
+  ordinal    Int // position within document
+  lang       Lang // denormalized for fast filter
+  text       String // ~280–320 tokens, ≤~1200 chars (DATABASE.md §14.1)
+  tokens     Int // token count at ingest
+  createdAt  DateTime @default(now()) @db.Timestamptz
+
+  document  Document        @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  embedding ChunkEmbedding?
+
+  @@unique([documentId, ordinal])
+  @@index([lang])
+  @@map("chunks")
+}
+
+// The embedding vector(1536) column + HNSW index are added by raw SQL migration
+// (docs/DATABASE.md §5). Prisma only models the surrounding scalar columns.
+model ChunkEmbedding {
+  chunkId   String   @id
+  model     String // e.g. text-embedding-3-large
+  dim       Int // must equal EMBED_DIM (1536)
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  chunk Chunk @relation(fields: [chunkId], references: [id], onDelete: Cascade)
+
+  @@map("chunk_embeddings")
+}
+
+model QueryEmbeddingCache {
+  id        String   @id @default(cuid())
+  queryHash String   @unique // hash(normText|model|dim)
+  model     String
+  dim       Int
+  expiresAt DateTime @db.Timestamptz
+  createdAt DateTime @default(now()) @db.Timestamptz
+
+  @@index([expiresAt])
+  @@map("query_embedding_cache")
+}
+
+// ---------------------------------------------------------------------------
+// Right Insight Panel + learning path
+// ---------------------------------------------------------------------------
+
+model PanelSnapshot {
+  id             String   @id @default(cuid())
+  conversationId String
+  lang           Lang
+  data           Json // PanelData (Frozen MASTER §3.5)
+  createdAt      DateTime @default(now()) @db.Timestamptz
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("panel_snapshots")
+}
+
+model LearningPath {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String // "Foundations of Soil"
+  pct       Int      @default(0) // 0..100 (UI progress bar)
+  ordinal   Int // display order
+  updatedAt DateTime @updatedAt @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@index([userId, ordinal])
+  @@map("learning_paths")
+}
+
+// ---------------------------------------------------------------------------
+// TASK 5 — Conversation memory (selective, useful, concise long-term memory)
+// ---------------------------------------------------------------------------
+
+model MemoryEntry {
+  id         String         @id @default(cuid())
+  userId     String
+  category   MemoryCategory
+  value      String // normalized fact, e.g. "chili", "disease diagnosis"
+  confidence Float // 0..1; only stored when > 0.8 (TASK 5 §Memory Rules)
+  isArchived Boolean        @default(false) // beyond the 20-active limit (TASK 5 §Memory Limits)
+  lastSeenAt DateTime       @default(now()) @db.Timestamptz // most-recent reinforcement (dedup/recency)
+  createdAt  DateTime       @default(now()) @db.Timestamptz
+  updatedAt  DateTime       @updatedAt @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // One canonical entry per (user, category, value) — dedup/update, never duplicate.
+  @@unique([userId, category, value])
+  // Active-memory retrieval ordering (recency, newest reinforced first).
+  @@index([userId, isArchived, lastSeenAt])
+  @@map("memory_entries")
+}
+
+// ---------------------------------------------------------------------------
+// TASK 9 — Proactive insights (0–2 per assistant message)
+// ---------------------------------------------------------------------------
+
+model Insight {
+  id             String          @id @default(cuid())
+  conversationId String
+  messageId      String
+  title          String
+  content        String
+  category       InsightCategory
+  confidence     Float // 0..1; internal only (never displayed)
+  ordinal        Int             @default(0) // 0 = primary, 1 = secondary
+  createdAt      DateTime        @default(now()) @db.Timestamptz
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message      Message      @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId, ordinal])
+  @@index([conversationId, createdAt])
+  @@map("insights")
+}
+
+// ---------------------------------------------------------------------------
+// Usage / cost accounting
+// ---------------------------------------------------------------------------
+
+model UsageEvent {
+  id           String   @id @default(cuid())
+  userId       String
+  messageId    String?  @unique
+  provider     String // anthropic | openai | brave
+  kind         String // generation | embedding | search | insight
+  inputTokens  Int      @default(0)
+  outputTokens Int      @default(0)
+  costUsd      Decimal  @default(0) @db.Decimal(10, 6)
+  latencyMs    Int      @default(0)
+  createdAt    DateTime @default(now()) @db.Timestamptz
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@map("usage_events")
+}
+
+// ---------------------------------------------------------------------------
+// Auth.js v5 adapter tables (standard)
+// ---------------------------------------------------------------------------
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime @db.Timestamptz
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime @db.Timestamptz
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
