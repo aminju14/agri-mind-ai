@@ -1,5 +1,10 @@
 # AgriMind Agents
 
+> **Quick reference only.** The authoritative, full multi-agent specification —
+> personas, routing tables, tool access, output contracts — lives in
+> [`docs/AGENTS.md`](docs/AGENTS.md). If the two disagree, `docs/AGENTS.md` wins;
+> update it there first, then mirror any change here.
+
 # Supervisor Agent
 
 ## Mission

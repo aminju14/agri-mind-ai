@@ -5,6 +5,11 @@
 > builds the backend **beneath** them without changing a rendered pixel. Every phase
 > ends in a shippable, demoable increment that keeps `npm run build` green and the
 > visual-regression gate passing.
+>
+> **Note (web search provider):** Phase 5 originally planned the **Brave** Search API.
+> The shipped implementation uses **Tavily** instead (`src/ai/tools/web-search/`). Where
+> older sections below say "Brave", read "Tavily" — the provider-interface design
+> (swappable adapter, timeout/retry/degrade) is unchanged.
 
 ---
 
@@ -43,7 +48,7 @@ layer routing, retrieval, search, and insight onto a working spine. Phase 7 hard
 | 2 | Chat Engine | Real streaming chat in the frozen UI (single agent, no grounding) |
 | 3 | Multi-Agent System | Correct agent routed per turn; 4 agents; strip/bubble identity coherent |
 | 4 | RAG System | Answers grounded in bilingual KB with truthful citation cards |
-| 5 | Web Search | Research agent uses live Brave data with web citations |
+| 5 | Web Search | Research agent uses live Tavily data with web citations |
 | 6 | Insight Generator | Per-answer insight + dynamic right panel |
 | 7 | Production Hardening | SLOs, abuse/cost guards, eval gate, DR, launch-ready |
 

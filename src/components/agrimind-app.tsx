@@ -20,8 +20,12 @@ export function AgrimindApp() {
   const panel = app.panel; // dynamic Insights Panel (seed until a conversation populates it)
 
   // ---- layout geometry (mirrors renderVals) ----
-  const Wl = isTablet ? 248 : 280;
-  const Wr = isDesktop ? 340 : isTablet ? 360 : 0;
+  // Desktop can collapse the sidebar to a slim icon rail; tablet/mobile use the drawer.
+  const railW = 64;
+  const collapsed = isDesktop && app.sidebarCollapsed;
+  const panelCollapsed = isDesktop && app.panelCollapsed;
+  const Wl = collapsed ? railW : isTablet ? 248 : 280;
+  const Wr = isDesktop ? (panelCollapsed ? railW : 340) : isTablet ? 360 : 0;
   const leftShown = !isMobile || app.drawerOpen;
   const rightShown = isDesktop || app.sheetOpen;
 
@@ -33,12 +37,20 @@ export function AgrimindApp() {
     width: Wl,
     zIndex: isMobile ? 70 : 40,
     transform: leftShown ? "translateX(0)" : "translateX(-100%)",
-    transition: "transform .3s cubic-bezier(.4,0,.2,1)",
+    transition: "transform .3s cubic-bezier(.4,0,.2,1), width .25s cubic-bezier(.4,0,.2,1)",
   };
 
   let rightWrap: CSSProperties;
   if (isDesktop) {
-    rightWrap = { position: "fixed", top: 0, right: 0, bottom: 0, width: Wr, zIndex: 40 };
+    rightWrap = {
+      position: "fixed",
+      top: 0,
+      right: 0,
+      bottom: 0,
+      width: Wr,
+      zIndex: 40,
+      transition: "width .25s cubic-bezier(.4,0,.2,1)",
+    };
   } else if (isTablet) {
     rightWrap = {
       position: "fixed",
@@ -99,6 +111,9 @@ export function AgrimindApp() {
           activeId={app.activeId}
           theme={theme}
           lang={lang}
+          collapsed={collapsed}
+          canCollapse={isDesktop}
+          onToggleCollapse={app.toggleSidebar}
           newChat={app.newChat}
           loadChat={app.loadChat}
           toggleTheme={app.toggleTheme}
@@ -225,6 +240,9 @@ export function AgrimindApp() {
           showGrabber={isMobile}
           showClose={!isDesktop}
           onClose={app.closeSheet}
+          collapsed={panelCollapsed}
+          canCollapse={isDesktop}
+          onToggleCollapse={app.togglePanel}
         />
       </aside>
 

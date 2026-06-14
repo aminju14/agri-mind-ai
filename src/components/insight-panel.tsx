@@ -1,8 +1,9 @@
 "use client";
 
+import type { CSSProperties } from "react";
 import type { PanelData, Strings } from "@/lib/types";
 import { Hoverable } from "./hoverable";
-import { ArrowUpRight, BulbIcon, CloseIcon } from "./icons";
+import { ArrowUpRight, BulbIcon, CloseIcon, SidebarToggleIcon } from "./icons";
 
 interface InsightPanelProps {
   panel: PanelData;
@@ -10,10 +11,90 @@ interface InsightPanelProps {
   showGrabber: boolean;
   showClose: boolean;
   onClose: () => void;
+  /** Desktop: render the slim icon rail instead of the full panel. */
+  collapsed?: boolean;
+  /** Whether the collapse toggle is available (desktop only). */
+  canCollapse?: boolean;
+  onToggleCollapse?: () => void;
 }
 
-export function InsightPanel({ panel, t, showGrabber, showClose, onClose }: InsightPanelProps) {
+const hoverRail: CSSProperties = { background: "var(--hover)", color: "var(--text)" };
+
+export function InsightPanel({
+  panel,
+  t,
+  showGrabber,
+  showClose,
+  onClose,
+  collapsed = false,
+  canCollapse = false,
+  onToggleCollapse,
+}: InsightPanelProps) {
   const learning = panel.learning.map((l) => ({ ...l, width: l.pct + "%" }));
+  const collapseLabel = t.insights;
+
+  /* ---- collapsed icon rail (desktop) ---- */
+  if (collapsed) {
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          height: "100%",
+          background: "var(--bg2)",
+          borderLeft: "1px solid var(--border)",
+          padding: "18px 0",
+          gap: 8,
+        }}
+      >
+        <Hoverable
+          as="button"
+          onClick={onToggleCollapse}
+          title={collapseLabel}
+          aria-label={collapseLabel}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 38,
+            height: 38,
+            border: "none",
+            borderRadius: 11,
+            background: "var(--primary-soft)",
+            color: "var(--primary)",
+            cursor: "pointer",
+            transition: "background .15s, color .15s",
+          }}
+          hoverStyle={hoverRail}
+        >
+          <BulbIcon />
+        </Hoverable>
+        <Hoverable
+          as="button"
+          onClick={onToggleCollapse}
+          title={collapseLabel}
+          aria-label={collapseLabel}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            width: 38,
+            height: 38,
+            border: "none",
+            borderRadius: 11,
+            background: "transparent",
+            color: "var(--muted)",
+            cursor: "pointer",
+            transition: "background .15s, color .15s",
+          }}
+          hoverStyle={hoverRail}
+        >
+          <SidebarToggleIcon style={{ transform: "scaleX(-1)" }} />
+        </Hoverable>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -46,25 +127,51 @@ export function InsightPanel({ panel, t, showGrabber, showClose, onClose }: Insi
             {t.insights}
           </span>
         </div>
-        {showClose && (
-          <button
-            onClick={onClose}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 30,
-              height: 30,
-              border: "1px solid var(--border)",
-              borderRadius: 9,
-              background: "var(--card)",
-              color: "var(--muted)",
-              cursor: "pointer",
-            }}
-          >
-            <CloseIcon />
-          </button>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {canCollapse && (
+            <Hoverable
+              as="button"
+              onClick={onToggleCollapse}
+              title={collapseLabel}
+              aria-label={collapseLabel}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                border: "none",
+                borderRadius: 9,
+                background: "transparent",
+                color: "var(--muted)",
+                cursor: "pointer",
+                transition: "background .15s, color .15s",
+              }}
+              hoverStyle={hoverRail}
+            >
+              <SidebarToggleIcon />
+            </Hoverable>
+          )}
+          {showClose && (
+            <button
+              onClick={onClose}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 30,
+                height: 30,
+                border: "1px solid var(--border)",
+                borderRadius: 9,
+                background: "var(--card)",
+                color: "var(--muted)",
+                cursor: "pointer",
+              }}
+            >
+              <CloseIcon />
+            </button>
+          )}
+        </div>
       </div>
 
       <div style={{ padding: "0 16px 24px", display: "flex", flexDirection: "column", gap: 20 }}>

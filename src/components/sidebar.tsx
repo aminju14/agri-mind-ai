@@ -15,6 +15,7 @@ import {
   TrashIcon,
   PinIcon,
   ArchiveIcon,
+  SidebarToggleIcon,
 } from "./icons";
 
 interface SidebarProps {
@@ -23,6 +24,11 @@ interface SidebarProps {
   activeId?: string;
   theme: Theme;
   lang: Lang;
+  /** Desktop: render the slim icon rail instead of the full sidebar. */
+  collapsed?: boolean;
+  /** Whether the collapse toggle is available (desktop only). */
+  canCollapse?: boolean;
+  onToggleCollapse?: () => void;
   newChat: () => void;
   loadChat: (id: string) => void;
   toggleTheme: () => void;
@@ -40,6 +46,9 @@ export function Sidebar({
   activeId,
   theme,
   lang,
+  collapsed = false,
+  canCollapse = false,
+  onToggleCollapse,
   newChat,
   loadChat,
   toggleTheme,
@@ -49,6 +58,14 @@ export function Sidebar({
   toggleArchiveStatus,
 }: SidebarProps) {
   const isDark = theme === "dark";
+  const collapseLabel =
+    lang === "en"
+      ? collapsed
+        ? "Expand sidebar"
+        : "Collapse sidebar"
+      : collapsed
+        ? "Perlebar sidebar"
+        : "Ciutkan sidebar";
   const themeLabel = isDark
     ? lang === "en"
       ? "Dark mode"
@@ -69,6 +86,104 @@ export function Sidebar({
       ),
     }))
     .filter((grp) => grp.items.length > 0);
+
+  /* ---- collapsed icon rail (desktop) ---- */
+  if (collapsed) {
+    const railBtn: CSSProperties = {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: 38,
+      height: 38,
+      border: "none",
+      borderRadius: 11,
+      background: "transparent",
+      color: "var(--muted)",
+      cursor: "pointer",
+      transition: "background .15s, color .15s",
+    };
+
+    return (
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          height: "100%",
+          background: "var(--bg2)",
+          borderRight: "1px solid var(--border)",
+          padding: "16px 0",
+          gap: 6,
+        }}
+      >
+        <div
+          style={{
+            width: 34,
+            height: 34,
+            borderRadius: 11,
+            background: "linear-gradient(140deg, var(--primary), var(--secondary))",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            boxShadow: "0 6px 16px rgba(34,197,94,.35)",
+            marginBottom: 8,
+          }}
+        >
+          <BrandMark size={13} ringWidth={2.5} />
+        </div>
+
+        <Hoverable
+          as="button"
+          onClick={onToggleCollapse}
+          title={collapseLabel}
+          aria-label={collapseLabel}
+          style={railBtn}
+          hoverStyle={hoverItem}
+        >
+          <SidebarToggleIcon />
+        </Hoverable>
+
+        <Hoverable
+          as="button"
+          onClick={newChat}
+          title={t.newChat}
+          aria-label={t.newChat}
+          style={{
+            ...railBtn,
+            background: "linear-gradient(135deg, var(--primary), #16a34a)",
+            color: "#04140a",
+            boxShadow: "0 8px 20px rgba(34,197,94,.28)",
+          }}
+          hoverStyle={{ transform: "translateY(-1px)" }}
+        >
+          <PlusIcon />
+        </Hoverable>
+
+        <div style={{ flex: 1 }} />
+
+        <Hoverable
+          as="button"
+          onClick={toggleTheme}
+          title={themeLabel}
+          aria-label={themeLabel}
+          style={railBtn}
+          hoverStyle={hoverItem}
+        >
+          {isDark ? <SunIcon /> : <MoonIcon />}
+        </Hoverable>
+        <Hoverable
+          as="button"
+          onClick={toggleLang}
+          title={langLabel}
+          aria-label={langLabel}
+          style={railBtn}
+          hoverStyle={hoverItem}
+        >
+          <GlobeIcon />
+        </Hoverable>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -106,6 +221,32 @@ export function Sidebar({
             AGRI · INTELLIGENCE
           </span>
         </div>
+        {canCollapse && (
+          <Hoverable
+            as="button"
+            onClick={onToggleCollapse}
+            title={collapseLabel}
+            aria-label={collapseLabel}
+            style={{
+              marginLeft: "auto",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 30,
+              height: 30,
+              border: "none",
+              borderRadius: 9,
+              background: "transparent",
+              color: "var(--muted)",
+              cursor: "pointer",
+              flex: "0 0 auto",
+              transition: "background .15s, color .15s",
+            }}
+            hoverStyle={hoverItem}
+          >
+            <SidebarToggleIcon />
+          </Hoverable>
+        )}
       </div>
 
       {/* new chat */}

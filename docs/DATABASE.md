@@ -65,9 +65,10 @@ QueryEmbeddingCache (hot query vectors, TTL)
 
 > `vector` is provided via pgvector. Prisma models the embedding as `Unsupported`
 > and the raw SQL/migrations create the actual `vector(N)` column and indexes (§5).
-> Set `N` = `EMBED_DIM` (default **3072** for `text-embedding-3-large`; if cost/index
-> constraints require, ingest at a reduced dim e.g. **1536** via the model's
-> `dimensions` param — but ingestion and query MUST agree).
+> Set `N` = `EMBED_DIM`. AgriMind ships at **1536** for `text-embedding-3-large` (via the
+> model's `dimensions` param) so HNSW stays usable — this is the default across schema,
+> migrations, and `.env.example`. `text-embedding-3-large` can emit up to **3072**; if you
+> raise `EMBED_DIM`, ingestion and query MUST agree and the `vector(N)` column must match.
 
 ```prisma
 // schema.prisma

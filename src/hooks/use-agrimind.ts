@@ -179,6 +179,10 @@ export function useAgrimind() {
   const [width, setWidth] = useState<number>(1280);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  /** Desktop-only: collapse the left sidebar to a slim icon rail. */
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  /** Desktop-only: collapse the right insights panel to a slim icon rail. */
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [historyGroups, setHistoryGroups] = useState<HistoryGroup[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   /** Dynamic Insights Panel data (seed until a conversation populates it). */
@@ -200,6 +204,8 @@ export function useAgrimind() {
       const lg = localStorage.getItem("am_lang");
       if (th === "dark" || th === "light") setTheme(th);
       if (lg === "en" || lg === "id") setLang(lg);
+      if (localStorage.getItem("am_sidebar_collapsed") === "1") setSidebarCollapsed(true);
+      if (localStorage.getItem("am_panel_collapsed") === "1") setPanelCollapsed(true);
     } catch { }
     const onResize = () => setWidth(window.innerWidth);
     onResize();
@@ -553,6 +559,8 @@ export function useAgrimind() {
     width,
     drawerOpen,
     sheetOpen,
+    sidebarCollapsed,
+    panelCollapsed,
     bp,
     historyGroups,
     historyLoading,
@@ -573,6 +581,22 @@ export function useAgrimind() {
     closeDrawer: () => setDrawerOpen(false),
     openSheet: () => setSheetOpen(true),
     closeSheet: () => setSheetOpen(false),
+    toggleSidebar: () =>
+      setSidebarCollapsed((c) => {
+        const next = !c;
+        try {
+          localStorage.setItem("am_sidebar_collapsed", next ? "1" : "0");
+        } catch { }
+        return next;
+      }),
+    togglePanel: () =>
+      setPanelCollapsed((c) => {
+        const next = !c;
+        try {
+          localStorage.setItem("am_panel_collapsed", next ? "1" : "0");
+        } catch { }
+        return next;
+      }),
     deleteChat,
     togglePinStatus,
     toggleArchiveStatus,

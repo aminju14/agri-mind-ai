@@ -155,7 +155,7 @@ Copy `.env.example` to `.env` and fill in the required values:
 | `DATABASE_URL` | ✅ | PostgreSQL connection string (use non-superuser for RLS) |
 | `DIRECT_URL` | ✅ | PostgreSQL admin connection (for Prisma migrations) |
 | `ANTHROPIC_API_KEY` | ✅ | Anthropic API key for Claude generation |
-| `ANTHROPIC_MODEL` | ❌ | Claude model ID (default: `claude-sonnet-4-20250514`) |
+| `ANTHROPIC_MODEL` | ❌ | Claude model ID (default: `claude-opus-4-8`) |
 | `OPENAI_API_KEY` | ✅* | OpenAI API key for embeddings (*required when RAG is enabled) |
 | `OPENAI_EMBED_MODEL` | ❌ | Embedding model (default: `text-embedding-3-large`) |
 | `EMBED_DIM` | ❌ | Embedding dimension (default: `1536`) |
@@ -284,7 +284,7 @@ agri-mind-ai/
 | **Fonts** | Sora, Plus Jakarta Sans, JetBrains Mono (Google Fonts) |
 | **Database** | [PostgreSQL 16](https://www.postgresql.org/) + [pgvector](https://github.com/pgvector/pgvector) |
 | **ORM** | [Prisma 6](https://www.prisma.io/) |
-| **AI Generation** | [Anthropic Claude](https://www.anthropic.com/) (claude-sonnet-4) |
+| **AI Generation** | [Anthropic Claude](https://www.anthropic.com/) (claude-opus-4-8) |
 | **Embeddings** | [OpenAI](https://openai.com/) (text-embedding-3-large) |
 | **Web Search** | [Tavily API](https://tavily.com/) |
 | **Testing** | [Vitest](https://vitest.dev/) |
