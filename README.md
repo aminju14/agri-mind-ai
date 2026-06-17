@@ -28,6 +28,18 @@ The system combines **Retrieval-Augmented Generation (RAG)** with a curated agri
 
 ---
 
+## 🎬 Preview
+
+<div align="center">
+
+![AgriMind AI — multi-agent agricultural advisor](docs/assets/demo.png)
+
+*Home view — specialist agents online, suggested workflows, and the proactive insight panel.*
+
+</div>
+
+---
+
 ## ✨ Features
 
 ### 🤖 Multi-Agent System
@@ -102,7 +114,7 @@ User Query
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/agri-mind-ai.git
+git clone https://github.com/aminju14/agri-mind-ai.git
 cd agri-mind-ai
 
 # 2. Install dependencies
@@ -369,7 +381,7 @@ Jika project ini bermanfaat, kamu bisa mendukung pengembangan AgriMind AI melalu
 
 ## 📝 License
 
-This project is private and proprietary.
+Licensed under the [MIT License](LICENSE) — free to use, modify, and distribute. Attribution appreciated.
 
 ---
 
